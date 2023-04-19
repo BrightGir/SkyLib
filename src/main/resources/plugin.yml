@@ -1,0 +1,6 @@
+name: SkyLib
+version: '${version}'
+main: me.bright.skylib.SkyLib
+api-version: 1.16
+commands:
+  test:
