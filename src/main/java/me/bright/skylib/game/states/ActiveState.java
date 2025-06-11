@@ -23,27 +23,13 @@ public abstract class ActiveState extends State {
     @Override
     public void startState() {
         //Раскидка по командам
-        distributePlayers();
-        setDefaultStatesOfPlayers();
+      //  distributePlayers();
         actionStartState();
+        setDefaultStatesOfPlayers();
     }
 
 
-    private void startEndCounter() {
-        endSeconds = 60*getGame().getDurationMinutes();
-        counterTask = new BukkitRunnable() {
 
-            @Override
-            public void run() {
-                endSeconds--;
-                if(endSeconds <= 0) {
-                    ActiveState.this.getGame().setState(GameState.END);
-                    this.cancel();
-                }
-            }
-
-        }.runTaskTimer(getGame().getArena().getPlugin(),0,20L);
-    }
 
     public int getSecondsToEnd() {
         return endSeconds;
@@ -52,7 +38,7 @@ public abstract class ActiveState extends State {
     @Override
     public void end() {
         if(counterTask != null && !counterTask.isCancelled()) {
-            getGame().setWinSeconds((getGame().getDurationMinutes()*60) - ((this).getSecondsToEnd()));
+         //   getGame().setWinSeconds((getGame().getDurationMinutes()*60) - ((this).getSecondsToEnd()));
             counterTask.cancel();
         }
         endAction();
@@ -66,9 +52,8 @@ public abstract class ActiveState extends State {
 
     public void distributePlayers() {
         getGame().getPlayers().forEach(player -> {
-            SPlayer bp = SPlayer.getPlayer(player);
-            if(!bp.hasTeam()) {
-                getGame().getTeamManager().addPlayer(bp,getOptimalTeam());
+            if(!player.hasTeam()) {
+                getGame().getTeamManager().addPlayer(player,getOptimalTeam());
             }
         });
     }
@@ -76,7 +61,6 @@ public abstract class ActiveState extends State {
     private Team getOptimalTeam() {
         Team optimalTeam = null;
         int players = -1;
-      //  Bukkit.getLogger().info("teams size " + getGame().getTeamManager().getTeams().size());
         for (Team team: getGame().getTeamManager().getTeams()) {
             if(!team.isFull() && team.getPlayersCount() > players) {
                 optimalTeam = team;
@@ -88,7 +72,7 @@ public abstract class ActiveState extends State {
 
     @Override
     public void addPlayer(Player player) {
-        getGame().getScoreboardManager().setBoard(SPlayer.getPlayer(player));
+        getGame().getScoreboardManager().setBoard(getGame().getPlayer(player));
     }
 
     @Override

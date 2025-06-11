@@ -2,6 +2,9 @@ package me.bright.skylib.utils;
 
 import com.google.common.io.ByteArrayDataOutput;
 import com.google.common.io.ByteStreams;
+import me.bright.skylib.SkyLib;
+import net.md_5.bungee.api.ChatMessageType;
+import net.md_5.bungee.api.chat.TextComponent;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.command.CommandSender;
@@ -50,7 +53,7 @@ public class Messenger {
     }
 
     public static void sendActionBar(Player player, String message) {
-        player.sendActionBar(message);
+        player.spigot().sendMessage(ChatMessageType.ACTION_BAR, TextComponent.fromLegacyText(message));
     }
 
     public static void broadcast(String message) {

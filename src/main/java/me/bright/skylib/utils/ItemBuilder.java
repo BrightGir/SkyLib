@@ -81,7 +81,7 @@ public class ItemBuilder {
     }
 
     public ItemBuilder addItemFlags(ItemFlag... flags) {
-        item.addItemFlags(flags);
+        item.getItemMeta().addItemFlags(flags);
         return this;
     }
 

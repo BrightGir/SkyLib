@@ -5,7 +5,6 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import javax.annotation.Nullable;
 
 import me.bright.skylib.scoreboard.game.ScoreboardSkelet;
 import me.bright.skylib.utils.Messenger;
@@ -96,7 +95,7 @@ public class CScoreboard {
         player.setScoreboard(this.bukkitScoreboard);
     }
 
-    public @Nullable Row addRow(String message){
+    public Row addRow(String message){
         if(this.finished){
             new NullPointerException("Can not add rows if scoreboard is already finished").printStackTrace();
             return null;
@@ -207,7 +206,7 @@ public class CScoreboard {
             return strs;
         }
 
-        private static @Nullable ChatColor charsToChatColor(char[] chars){
+        private static ChatColor charsToChatColor(char[] chars){
             for(ChatColor cc:ChatColor.values()){
                 final char[] ccChars = cc.toString().toCharArray();
 

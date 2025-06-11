@@ -24,11 +24,13 @@ import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.io.*;
 import java.nio.file.Files;
 import java.util.*;
 import java.util.function.Consumer;
+import java.util.stream.Collectors;
 
 public abstract class Game {
 
@@ -40,7 +42,7 @@ public abstract class Game {
     private String broadCastPrefix;
     private State gamestate;
     private Map<GameState, State> states;
-    private List<Player> players;
+    private Map<UUID,SPlayer> players;
     private List<UUID> livePlayers;
     private List<UUID> spectators;
     private Team winner;
@@ -52,8 +54,9 @@ public abstract class Game {
     private Map<String, Consumer<EntityDamageByEntityEvent>> attackActions;
     private World world;
     private JavaPlugin plugin;
-    private SkyLib skylib;
     private List<Location> islands;
+    private BukkitTask scoreboardUpdater;
+    //private List<SPlayer> players;
 
 
     public Game(Arena arena, int maxPlayers, int teamSize, World world) {
@@ -68,15 +71,22 @@ public abstract class Game {
         this.serverLobbyName = arena.getServerLobbyName();
         reloadVariables();
         initStates();
-        startUpdaterForAll();
  //       skylib.getMv().getMVWorldManager().world
 
+    }
+
+    public SPlayer getPlayer(Player player) {
+        return players.computeIfAbsent(player.getUniqueId(), k -> new SPlayer(player));
+    }
+
+    public void setTeamManager(TeamManager manager) {
+        this.teamManager = manager;
     }
 
     private void reloadVariables() {
         this.open = false;
         this.attackActions = new HashMap<>();
-        this.players = new ArrayList<>();
+        this.players = new HashMap<>();
         this.itemActions = new HashMap<>();
         this.gamestate = null;
         this.livePlayers = new ArrayList<>();
@@ -92,18 +102,45 @@ public abstract class Game {
         return mapname;
     }
 
-    private void startUpdaterForAll() {
-        new BukkitRunnable() {
+ //  private void startUpdaterForAll() {
+ //      new BukkitRunnable() {
+ //          @Override
+ //          public void run() {
+ //              for(SPlayer sp: getPlayers()) {
+ //                  if(sp.getPlayer() != null && sp.getPlayer().isOnline() && sp.getScoreboard() != null) {
+ //                      sp.getScoreboard().update();
+ //                  }
+ //              }
+ //          }
+ //      }.runTaskTimer(arena.getPlugin(),0,20L);
+ //  }
+
+
+    public void startScoreboardUpdater() {
+        // Проверяем, чтобы не запустить два таймера
+        if (scoreboardUpdater != null && !scoreboardUpdater.isCancelled()) {
+            return;
+        }
+
+        this.scoreboardUpdater = new BukkitRunnable() {
             @Override
             public void run() {
-                for(SPlayer sp: SPlayer.getPlayers()) {
-                    if(sp.getPlayer() != null && sp.getPlayer().isOnline() && sp.getScoreboard() != null) {
-                   //     Bukkit.getLogger().info("scoreboard update");
-                        sp.getScoreboard().update();
+                // Проходимся только по игрокам ЭТОЙ игры
+                for (SPlayer sPlayer : getPlayers()) {
+                    if (sPlayer.getScoreboard() != null) {
+                        sPlayer.getScoreboard().update();
                     }
                 }
             }
-        }.runTaskTimer(arena.getPlugin(),0,20L);
+        }.runTaskTimer(plugin, 0L, 20L);
+    }
+
+
+    public void stopScoreboardUpdater() {
+        if (scoreboardUpdater != null) {
+            scoreboardUpdater.cancel();
+            scoreboardUpdater = null;
+        }
     }
 
     public boolean isOpen() {
@@ -149,9 +186,9 @@ public abstract class Game {
     }
 
     public void addPlayer(Player player) {
-        players.add(player);
         getState().addPlayer(player);
-        SPlayer.getPlayer(player).setGame(this);
+        players.put(player.getUniqueId(),new SPlayer(player));
+        players.get(player.getUniqueId()).setGame(this);
         getArena().getPlugin().getServer().getPluginManager().callEvent(new GameJoinEvent(player,this));
     }
 
@@ -186,7 +223,7 @@ public abstract class Game {
     }
 
     public void broadCastColor(String s, boolean prefix) {
-        for(Player p: getPlayers()) {
+        for(Player p: getPlayers().stream().map(SPlayer::getPlayer).toList()) {
             Messenger.send(p, ((prefix) ?broadCastPrefix : "") + s);
         }
     }
@@ -222,8 +259,8 @@ public abstract class Game {
         return arena;
     }
 
-    public List<Player> getPlayers() {
-        return players;
+    public Collection<SPlayer> getPlayers() {
+        return players.values();
     }
 
     public int getMaxPlayers() {
@@ -250,7 +287,11 @@ public abstract class Game {
         this.gamestate.startState();
 
         if(state == GameState.ACTIVEGAME) {
-            setLivingPlayers(this.getPlayers());
+            List<Player> playerList = this.getPlayers().stream()
+                    .map(SPlayer::getPlayer) // Преобразуем
+                    .filter(Objects::nonNull) // Отбрасываем всех, у кого player == null
+                    .collect(Collectors.toList());
+            setLivingPlayers(playerList);
         }
     }
 
@@ -267,7 +308,8 @@ public abstract class Game {
 
     public void fullyEnd() {
         this.gamestate = null;
-        for (Player p: getPlayers()) {
+        stopScoreboardUpdater();
+        for (Player p: getPlayers().stream().map(SPlayer::getPlayer).collect(Collectors.toList())) {
             getArena().getPlugin().getServer().getPluginManager().callEvent(new GameLeaveEvent(p,this));
             try {
                 redirectToLobby(p);
@@ -275,7 +317,7 @@ public abstract class Game {
                 p.kickPlayer("Лобби недоступно!");
             }
         }
-        this.getPlayers().clear();
+        this.players.clear();
         this.winner = null;
         startGame();
     }
@@ -286,20 +328,32 @@ public abstract class Game {
 
     private void initStates() {
         states = new HashMap<>();
-        states.put(GameState.WAITING, getWaitingState());
-        states.put(GameState.ACTIVEGAME, getActiveState());
-        states.put(GameState.END, getEndState());
+        states.put(GameState.WAITING, getNewWaitingState());
+        states.put(GameState.ACTIVEGAME, getNewActiveState());
+        states.put(GameState.END, getNewEndState());
     }
 
     public void addIslandsLocation(double x, double y, double z, float yaw, float pitch) {
         islands.add(new Location(getWorld(),x,y,z,yaw,pitch));
     }
 
-    public abstract WaitingState getWaitingState();
+    public abstract WaitingState getNewWaitingState();
 
-    public abstract ActiveState getActiveState();
+    public abstract ActiveState getNewActiveState();
 
-    public abstract EndState getEndState();
+    public abstract EndState getNewEndState();
+
+    public WaitingState getWaitingState() {
+        return (WaitingState) states.get(GameState.WAITING);
+    }
+
+    public ActiveState getActiveState() {
+        return (ActiveState) states.get(GameState.ACTIVEGAME);
+    }
+
+    public EndState  getEndState() {
+        return (EndState) states.get(GameState.END);
+    }
 
     public abstract Class<? extends WaitingSkelet> getWaitingScoreboardSkeletClass();
 
@@ -320,72 +374,97 @@ public abstract class Game {
         reloadVariables();
         initGameWorld();
         actionResetGame();
-        //this.setState(GameState.WAITING);
+        startScoreboardUpdater();
     }
 
     public List<UUID> getSpectators() {
         return spectators;
     }
 
-    public void resetWorld(){
-        Bukkit.getLogger().info("Resetting arena world " + this.getWorld().getName() + "!");
-        String worldName = world.getName();
-        for(Player player : this.getWorld().getPlayers()){
-            player.kickPlayer("World resetting...");
-        }
-        Bukkit.getLogger().info("Unloading world " + worldName + "...");
-        Bukkit.unloadWorld(worldName, false);
 
-        try {
-            Bukkit.getLogger().info("Deleting world " + worldName + "...");
-            FileUtils.deleteDirectory(new File(Bukkit.getWorldContainer() + File.separator + worldName
-                    ,"region"));
-            FileUtils.deleteDirectory(new File(Bukkit.getWorldContainer(),worldName));
-            Bukkit.getLogger().info("Loading world " + worldName + " on server...");
-            FileUtils.copyDirectory(new File(plugin.getDataFolder() + File.separator + "backups",worldName),new File(Bukkit.getWorldContainer(), worldName));
-            File playerDataDirectory = new File(Bukkit.getWorldContainer() + File.separator + worldName + File.separator + "playerdata");
-            if(playerDataDirectory.exists()) {
-                FileUtils.deleteDirectory(playerDataDirectory);
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+    public void resetWorld() {
+        if (this.world == null) {
+            Bukkit.getLogger().severe("Cannot reset world: world is null!");
+            return;
         }
-        Bukkit.getScheduler().scheduleSyncDelayedTask(plugin, new Runnable(){
 
+        final String worldName = this.world.getName();
+        Bukkit.getLogger().info("Starting world reset process for: " + worldName);
+
+        for (Player player : new ArrayList<>(this.world.getPlayers())) {
+            player.kickPlayer(ChatColor.RED + "Арена перезагружается. Пожалуйста, перезайдите.");
+        }
+
+        if (!Bukkit.unloadWorld(this.world, false)) {
+            Bukkit.getLogger().severe("Could not unload world: " + worldName + ". Reset process aborted.");
+            return;
+        }
+        this.world = null;
+        new BukkitRunnable() {
             @Override
             public void run() {
-
-                WorldCreator creator = new WorldCreator(worldName);
-                // creator.generatorSettings("3;minecraft:air;127;");
-                creator.type(WorldType.FLAT);
-                world = Bukkit.createWorld(creator);
-
-                getLobbyLocation().setWorld(world);
-                for (Location loc: getIslandsLocations()) {
-                    loc.setWorld(world);
-                }
-
-              //getWorld().setGameRule(GameRule.ANNOUNCE_ADVANCEMENTS,false);
-              //getWorld().setGameRule(GameRule.DO_MOB_SPAWNING,false);
-              //getWorld().setGameRule(GameRule.DO_MOB_LOOT,false);
-                getWorld().setGameRuleValue("ANNOUNCE_ADVANCEMENTS", "false");
-                getWorld().setGameRuleValue("DO_MOB_SPAWNING", "false");
-                getWorld().setGameRuleValue("DO_MOB_LOOT", "false");
-                getWorld().setDifficulty(Difficulty.HARD);
                 try {
-                    getLobbyLocation().getChunk().load();
-                } catch(Exception e) {
+                    File worldFolder = new File(Bukkit.getWorldContainer(), worldName);
+
+                    File backupFolder = new File(plugin.getDataFolder(), "backups" + File.separator + worldName);
+
+                    if (!backupFolder.exists() || !backupFolder.isDirectory()) {
+                        Bukkit.getLogger().severe("Backup folder for world '" + worldName + "' not found at: " + backupFolder.getPath());
+                        return;
+                    }
+
+                    Bukkit.getLogger().info("Deleting old world directory: " + worldFolder.getPath());
+                    FileUtils.deleteDirectory(worldFolder);
+
+                    Bukkit.getLogger().info("Copying world from backup: " + backupFolder.getPath());
+                    FileUtils.copyDirectory(backupFolder, worldFolder);
+                    new BukkitRunnable() {
+                        @Override
+                        public void run() {
+                            Bukkit.getLogger().info("[Creating world '" + worldName + "' from files...");
+
+                            WorldCreator creator = new WorldCreator(worldName);
+
+                            Game.this.world = Bukkit.createWorld(creator);
+
+                            if (Game.this.world == null) {
+                                Bukkit.getLogger().severe("Failed to create world '" + worldName + "' after reset. The game cannot start.");
+                                return;
+                            }
+                            Game.this.world.setAutoSave(false);
+                            Game.this.world.setDifficulty(Difficulty.HARD);
+                            Game.this.world.setGameRuleValue("ANNOUNCE_ADVANCEMENTS", "false");
+                            Game.this.world.setGameRuleValue("DO_MOB_SPAWNING", "false");
+                            Game.this.world.setGameRuleValue("DO_DAYLIGHT_CYCLE", "false");
+
+                            updateLocationsWorld();
+
+                            Bukkit.getLogger().info("World '" + worldName + "' has been successfully reset and is ready.");
+                            setState(GameState.WAITING);
+                        }
+                    }.runTask(plugin);
+
+                } catch (IOException e) {
+                    // Если произошла ошибка при работе с файлами
+                    Bukkit.getLogger().severe("An I/O error occurred during world reset for: " + worldName);
                     e.printStackTrace();
                 }
-                setState(GameState.WAITING);
-                Bukkit.getLogger().info("World " + worldName + " loaded");
             }
-
-        }, 40L);
-        world.setAutoSave(false);
-
+        }.runTaskAsynchronously(plugin);
     }
 
+    private void updateLocationsWorld() {
+        if (this.world == null) return;
+
+        if (getLobbyLocation() != null) {
+            getLobbyLocation().setWorld(this.world);
+        }
+        if (islands != null) {
+            for (Location loc : islands) {
+                loc.setWorld(this.world);
+            }
+        }
+    }
 
     public abstract Location getLobbyLocation();
 
@@ -402,82 +481,6 @@ public abstract class Game {
         return teamManager;
     }
 
-    public abstract int getDurationMinutes();
 
-
-
-
-    // This Reset one is hand-made and may not work,
-    // but these are the methods and the sequence you need to follow.
-    public void reset(World world) { // Please modify to your needs
-        world.setKeepSpawnInMemory(false);
-        Bukkit.getServer().unloadWorld(world, false); // False = Not Save
-        Bukkit.getScheduler().runTaskLater(plugin, new Runnable(){ // Run It Later to make sure its unloaded.
-            @Override
-            public void run() {
-                final File srcWorldFolder = new File(plugin.getDataFolder() + File.separator + "backups" +
-                        File.separator + world.getName()); // Backup world folder location
-                final File worldFolder = new File(world.getName()); // World folder name
-                deleteFolder(worldFolder); // Delete old folder
-                copyWorldFolder(srcWorldFolder, worldFolder); // Copy backup folder
-                WorldCreator w = new WorldCreator(world.getName()); // This starts the world load
-                w.type(WorldType.FLAT);
-                Game.this.world = Bukkit.createWorld(w);
-            }
-        }, 60);
-    }
-
-    public void saveWorld(World world) {
-        if(world != null) {
-            File worldFolder = new File("plugins/SkyLuckyWars/" + world.getName() +"/" + world.getName()); // I Save in /plugins/minigame/WorldName/WorldName ( the second world name is the actual folder )
-            File srcWorldFolder = new File(Bukkit.getWorldContainer() + File.separator + world.getName());
-            if(worldFolder.exists()) {
-                deleteFolder(worldFolder);
-            }
-            copyWorldFolder(srcWorldFolder, worldFolder);
-        }
-    }
-
-    private void deleteFolder(File folder) {
-        File[] files = folder.listFiles();
-        if(files != null) {
-            for(File file : files) {
-                if(file.isDirectory()) {
-                    deleteFolder(file);
-                } else {
-                    file.delete();
-                }
-            }
-        }
-        folder.delete();
-    }
-
-    private void copyWorldFolder(File from, File to) {
-        try {
-            if(from.isDirectory()) {
-                if(!to.exists()) {
-                    to.mkdirs();
-                }
-                String[] files = from.list();
-                for(String file : files) {
-                    File srcFile = new File(from, file);
-                    File destFile = new File(to, file);
-                    copyWorldFolder(srcFile, destFile);
-                }
-            } else {
-                InputStream in = Files.newInputStream(from.toPath());
-                OutputStream out = Files.newOutputStream(to.toPath());
-                byte[] buffer = new byte[1024];
-                int length;
-                while ((length = in.read(buffer)) > 0) {
-                    out.write(buffer, 0, length);
-                }
-                in.close();
-                out.close();
-            }
-        } catch(Exception e) {
-            e.printStackTrace();
-        }
-    }
 
 }

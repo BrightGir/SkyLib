@@ -12,12 +12,12 @@ import org.bukkit.scheduler.BukkitTask;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.UUID;
 
 public class SPlayer {
 
     private Player player;
-    private static HashMap<UUID,SPlayer> players = new HashMap<>();
     private Team team;
     private BScoreboard scoreboard;
     private Arena arena;
@@ -32,9 +32,9 @@ public class SPlayer {
         this.infos = new HashMap<>();
         this.spectator = false;
         online = true;
-        players.put(player.getUniqueId(),this);
        // Bukkit.getLogger().info("new new");
     }
+
 
     public void putInfo(String key, Object value) {
         infos.put(key,value);
@@ -117,9 +117,6 @@ public class SPlayer {
     }
 
 
-    public void remove() {
-        players.remove(this.getPlayer().getUniqueId());
-    }
 
  //   public void removeScoreboard() {
   //      this.scoreboard = null;
@@ -138,9 +135,6 @@ public class SPlayer {
         return team;
     }
 
-    public static void reset() {
-        players.clear();
-    }
 
     public boolean hasTeam() {
         return team != null;
@@ -150,17 +144,7 @@ public class SPlayer {
         return player;
     }
 
-    public static SPlayer getPlayer(Player player) {
-        SPlayer sp = (players.get(player.getUniqueId()) == null) ? new SPlayer(player) : players.get(player.getUniqueId());
-        if(sp.getPlayer() == null) {
-            sp = new SPlayer(player);
-        }
-        return sp;
-    }
 
-    public static Collection<SPlayer> getPlayers() {
-        return players.values();
-    }
 
 
 

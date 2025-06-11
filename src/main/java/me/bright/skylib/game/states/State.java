@@ -36,8 +36,8 @@ public abstract class State {
     public abstract int getUpdateScoreboardDelay();
 
     protected void setDefaultStatesOfPlayers() {
-        for (Player p : getGame().getPlayers()) {
-            SPlayer pl = SPlayer.getPlayer(p);;
+        for (Player p : getGame().getPlayers().stream().map(SPlayer::getPlayer).toList()) {
+            SPlayer pl = getGame().getPlayer(p);
             getGame().getScoreboardManager().setBoard(pl);
             setDefaultStateOfPlayer(p);
         }

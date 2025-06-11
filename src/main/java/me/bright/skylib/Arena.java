@@ -40,7 +40,7 @@ public class Arena {
         return games;
     }
 
-    public JavaPlugin getPlugin() {
+    public SkyLib getPlugin() {
         return plugin;
     }
 

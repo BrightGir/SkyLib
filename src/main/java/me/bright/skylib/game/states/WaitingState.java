@@ -46,7 +46,7 @@ public abstract class WaitingState extends State {
             this.secondsLeft = 15;
             return;
         }
-        SPlayer sp = SPlayer.getPlayer(player);
+        SPlayer sp = getGame().getPlayer(player);
         getGame().getScoreboardManager().setBoard(sp);
 //        Bukkit.getLogger().info("setscoreboard (WaitingState 51)");
         setDefaultStateOfPlayer(player);
@@ -84,7 +84,7 @@ public abstract class WaitingState extends State {
                     sendPlayersColorMessage("&FИгра начинается через &e" + secondsLeft + " &f" + Messenger.correct(secondsLeft,"секунду",
                             "секунды","секунд"));
                     getGame().getPlayers().forEach(p -> {
-                        p.getWorld().playSound(p.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP,2,2);
+                        p.getPlayer().getWorld().playSound(p.getPlayer().getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP,2,2);
                     });
                 }
                 if(secondsLeft <= 0) {
@@ -97,7 +97,7 @@ public abstract class WaitingState extends State {
 
     private void sendPlayersColorMessage(String message) {
         this.getGame().getPlayers().forEach(player -> {
-            Messenger.send(player, Messenger.color(message));
+            Messenger.send(player.getPlayer(), Messenger.color(message));
         });
     }
 

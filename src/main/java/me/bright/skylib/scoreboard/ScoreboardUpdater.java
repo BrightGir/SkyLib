@@ -1,5 +1,6 @@
 package me.bright.skylib.scoreboard;
 
+import me.bright.skylib.SkyLib;
 import me.bright.skylib.game.Game;
 import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;

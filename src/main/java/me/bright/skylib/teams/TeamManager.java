@@ -32,11 +32,13 @@ public class TeamManager {
         }
     }
 
+    protected Map<TeamColor,Team> getTeamsMap() {
+        return teams;
+    }
+
 
     public void clearTeams() {
-        for(Team team: teams.values()) {
-            team.clear();
-        }
+        teams.clear();
     }
     public void addPlayer(SPlayer player, Team team) {
         if(player.getTeam() != null) {

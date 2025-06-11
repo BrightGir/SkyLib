@@ -1,5 +1,6 @@
 package me.bright.skylib.utils;
 
+import me.bright.skylib.SkyLib;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.scheduler.BukkitRunnable;
 

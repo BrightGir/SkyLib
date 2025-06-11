@@ -1,6 +1,15 @@
 package me.bright.skylib.game;
 
 public enum GameMode {
-    TEAM,
-    SOLO;
+    TEAM("Командный"),
+    SOLO("Одиночный");
+
+    String name;
+    GameMode(String name) {
+        this.name = name;
+    }
+
+    public String getName() {
+        return name;
+    }
 }

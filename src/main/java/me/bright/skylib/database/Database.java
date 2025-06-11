@@ -72,8 +72,13 @@ public abstract class Database {
         try {
             conn = getSQLConnection();
           //  Bukkit.getLogger().info(query + " query");
-            ps = conn.prepareStatement(query.replace("*","'" + data + "'"));
-         //  ps.setString(1,data);
+            String p = query.replace("*",data);
+            ps = conn.prepareStatement(p);
+          // if(p.contains("?")) {
+          //
+          // }
+         //   ps.setString(1, data);
+          //  Bukkit.getLogger().info("xui = " + p);
             rs = ps.executeQuery();
 
             if (!rs.next()) {
@@ -97,6 +102,45 @@ public abstract class Database {
         }
         return 0;
     }
+
+    public Object get(String query, String data, Object... args) {
+        Connection conn = null;
+        PreparedStatement ps = null;
+        ResultSet rs = null;
+        try {
+            conn = getSQLConnection();
+            //  Bukkit.getLogger().info(query + " query");
+            String p = query.replace("*",data);
+            for(Object arg: args) {
+                p = p.replaceFirst("\\?",String.valueOf(arg));
+            }
+          //  Bukkit.getLogger().info(" xui = " + p);
+         //   ps.setString(1, data);
+            ps = conn.prepareStatement(p);
+            rs = ps.executeQuery();
+
+            if (!rs.next()) {
+                PluginLogger.getGlobal().info("Cannot get information from Mysql Db.");
+                return 0;
+            }
+            return rs.getObject(data);
+        } catch (SQLException ex) {
+            //   Bukkit.getLogger().info(query + " query");
+            ex.printStackTrace();
+
+        } finally {
+            try {
+                if (ps != null)
+                    ps.close();
+                if (conn != null)
+                    conn.close();
+            } catch (SQLException ex) {
+                ex.printStackTrace();
+            }
+        }
+        return 0;
+    }
+
 
     public void execute(String query, Object... args) {
         try (Connection conn = getSQLConnection(); PreparedStatement stmt = conn.prepareStatement(

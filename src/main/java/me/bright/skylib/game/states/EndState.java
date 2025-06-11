@@ -14,28 +14,28 @@ public abstract class EndState extends State {
 
     private int seconds;
     private BukkitTask counter;
+    private boolean startCount;
 
     public EndState(Game game) {
         super(game);
+        this.startCount = true;
+    }
+
+    public void setStartCount(boolean flag) {
+        this.startCount = flag;
     }
 
     @Override
     public void startState() {
         seconds = getDefaultEndSeconds();
-        setWinnerInGame();
-        setDefaultStatesOfPlayers();
-        startCounterToEnd();
         actionStartState();
-    }
-
-
-    public abstract Team getWinner();
-
-    private void setWinnerInGame() {
-        if(getGame().getWinner() == null) {
-            getGame().setWinner(getWinner());
+        setDefaultStatesOfPlayers();
+        if(startCount) {
+            startCounterToEnd();
         }
     }
+
+
 
     public abstract int getDefaultEndSeconds();
 
@@ -58,7 +58,7 @@ public abstract class EndState extends State {
 
     private void sendPlayersColorMessage(String message) {
         this.getGame().getPlayers().forEach(player -> {
-            Messenger.send(player,message);
+            Messenger.send(player.getPlayer(),message);
         });
     }
 
